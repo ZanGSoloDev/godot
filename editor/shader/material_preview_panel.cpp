@@ -94,14 +94,19 @@ void MaterialPreviewPanel::_poll() {
 		} else {
 			preview->hide();
 		}
+	}
 
-		if (shader.is_null()) {
-			source_label->set_text(TTR("Open a shader to preview it."));
-		} else if (material == scratch_instance) {
-			source_label->set_text(vformat(TTR("Previewing \"%s\" with default parameters."), shader->get_path().get_file()));
-		} else {
-			source_label->set_text(vformat(TTR("Previewing \"%s\" from the inspector."), material->get_path().is_empty() ? material->get_class() : material->get_path().get_file()));
-		}
+	// Rebuilt every poll: switching shaders keeps the same scratch material, and files can be renamed.
+	String source_text;
+	if (shader.is_null()) {
+		source_text = TTR("Open a shader to preview it.");
+	} else if (material == scratch_instance) {
+		source_text = vformat(TTR("Previewing \"%s\" with default parameters."), shader->get_path().get_file());
+	} else {
+		source_text = vformat(TTR("Previewing \"%s\" from the inspector."), material->get_path().is_empty() ? material->get_class() : material->get_path().get_file());
+	}
+	if (source_label->get_text() != source_text) {
+		source_label->set_text(source_text);
 	}
 
 	_update_switches();

@@ -8022,7 +8022,7 @@ VisualShaderEditor::VisualShaderEditor() {
 	shader_preview_button->set_theme_type_variation(SceneStringName(FlatButton));
 	shader_preview_button->set_toggle_mode(true);
 	shader_preview_button->set_tooltip_text(TTR("Toggle shader preview."));
-	shader_preview_button->set_pressed(true);
+	shader_preview_button->set_pressed(shader_preview_showed);
 	toolbar_hflow->add_child(shader_preview_button);
 	shader_preview_button->connect(SceneStringName(pressed), callable_mp(this, &VisualShaderEditor::_show_shader_preview));
 
@@ -8100,6 +8100,7 @@ VisualShaderEditor::VisualShaderEditor() {
 
 	shader_preview_vbox = memnew(VBoxContainer);
 	shader_preview_vbox->set_custom_minimum_size(Size2(200 * EDSCALE, 0));
+	shader_preview_vbox->set_visible(shader_preview_showed);
 	main_box->add_child(shader_preview_vbox);
 
 	VSplitContainer *preview_split = memnew(VSplitContainer);

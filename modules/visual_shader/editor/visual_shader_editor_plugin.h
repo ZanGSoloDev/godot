@@ -347,7 +347,7 @@ class VisualShaderEditor : public ScriptEditorBase {
 	bool code_preview_first = true;
 	bool code_preview_showed = false;
 
-	bool shader_preview_showed = true;
+	bool shader_preview_showed = false; // The shader editor dock already has a Material Preview panel.
 
 	LineEdit *param_filter = nullptr;
 	MenuButton *preview_tools = nullptr;
