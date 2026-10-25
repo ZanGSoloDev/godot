@@ -5776,6 +5776,11 @@ void EditorInspector::_edit_set(const String &p_name, const Variant &p_value, bo
 		undo_redo->add_do_property(object, p_name, new_value);
 		bool valid = false;
 		Variant value = object->get(p_name, &valid);
+		MaterialInstance *material_instance = Object::cast_to<MaterialInstance>(object);
+		if (material_instance && !material_instance->is_property_overridden(p_name)) {
+			// Inherited values are reported by get(), but undoing must remove the override instead of pinning that value.
+			value = Variant();
+		}
 		Variant::Type type = new_value.get_type();
 		Variant::Type prev_type = value.get_type();
 		if (valid) {

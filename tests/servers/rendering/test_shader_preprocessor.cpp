@@ -375,4 +375,52 @@ TEST_CASE("[ShaderPreprocessor] Invalid concatenations") {
 	CHECK_NE(preprocessor.preprocess("#define X(y) ## y", filename, result), Error::OK);
 }
 
+TEST_CASE("[ShaderPreprocessor] Static switches") {
+	const String code(
+			"#pragma static_switch USE_A true\n"
+			"#pragma static_switch USE_B\n"
+			"#pragma static_switch USE_A false\n"
+			"#ifdef USE_A\n"
+			"a\n"
+			"#endif\n"
+			"#ifdef USE_B\n"
+			"b\n"
+			"#endif\n");
+	String filename("somefile.gdshader");
+
+	SUBCASE("Declarations and defaults") {
+		ShaderPreprocessor preprocessor;
+		String result;
+		LocalVector<ShaderPreprocessor::StaticSwitch> switches;
+		CHECK_EQ(preprocessor.preprocess(code, filename, result, nullptr, nullptr, &switches), Error::OK);
+		// Redeclaring is allowed, the first default wins.
+		REQUIRE_EQ(switches.size(), 2u);
+		CHECK_EQ(switches[0].name, "USE_A");
+		CHECK(switches[0].default_value);
+		CHECK_EQ(switches[1].name, "USE_B");
+		CHECK_FALSE(switches[1].default_value);
+		String expected("a");
+		CHECK_SHADER_EQ(result, expected);
+	}
+
+	SUBCASE("Values override defaults") {
+		ShaderPreprocessor preprocessor;
+		String result;
+		HashMap<String, bool> values;
+		values["USE_A"] = false;
+		values["USE_B"] = true;
+		CHECK_EQ(preprocessor.preprocess(code, filename, result, nullptr, &values), Error::OK);
+		String expected("b");
+		CHECK_SHADER_EQ(result, expected);
+	}
+
+	SUBCASE("Invalid declarations") {
+		ShaderPreprocessor preprocessor;
+		String result;
+		CHECK_NE(preprocessor.preprocess("#pragma static_switch\n", filename, result), Error::OK);
+		CHECK_NE(preprocessor.preprocess("#pragma static_switch X maybe\n", filename, result), Error::OK);
+		CHECK_NE(preprocessor.preprocess("#define X 2\n#pragma static_switch X true\n", filename, result), Error::OK);
+	}
+}
+
 } // namespace TestShaderPreprocessor

@@ -341,6 +341,17 @@ Variant MaterialInstance::get_inherited_property_value(const StringName &p_prope
 	return Variant();
 }
 
+bool MaterialInstance::is_property_overridden(const StringName &p_property) const {
+	const String name = p_property;
+	if (name.begins_with(PARAMETER_PREFIX)) {
+		return is_shader_parameter_overridden(name.trim_prefix(PARAMETER_PREFIX));
+	}
+	if (name.begins_with(STATIC_SWITCH_PREFIX)) {
+		return is_static_switch_overridden(name.trim_prefix(STATIC_SWITCH_PREFIX));
+	}
+	return true;
+}
+
 ///////////////////////////////////
 // Properties.
 

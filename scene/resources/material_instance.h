@@ -100,6 +100,8 @@ public:
 
 	// Value the property would have without this instance's override (used by the inspector's override checkboxes).
 	Variant get_inherited_property_value(const StringName &p_property) const;
+	// Whether a `shader_parameter/*` or `static_switch/*` property is overridden. Other properties always count as overridden.
+	bool is_property_overridden(const StringName &p_property) const;
 
 	virtual Shader::Mode get_shader_mode() const override;
 	virtual RID get_rid() const override;
