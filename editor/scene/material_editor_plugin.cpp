@@ -35,6 +35,7 @@
 #include "core/io/resource_loader.h"
 #include "core/io/resource_saver.h"
 #include "core/object/callable_mp.h"
+#include "core/object/class_db.h"
 #include "editor/editor_node.h"
 #include "editor/editor_string_names.h"
 #include "editor/editor_undo_redo_manager.h"
@@ -559,6 +560,42 @@ MaterialEditorPlugin::MaterialEditorPlugin() {
 	Ref<EditorInspectorPluginMaterial> plugin;
 	plugin.instantiate();
 	add_inspector_plugin(plugin);
+
+	Ref<MaterialInstanceContextMenuPlugin> context_menu_plugin;
+	context_menu_plugin.instantiate();
+	add_context_menu_plugin(EditorContextMenuPlugin::CONTEXT_SLOT_FILESYSTEM, context_menu_plugin);
+}
+
+Vector<String> MaterialInstanceContextMenuPlugin::_get_parent_files(const PackedStringArray &p_paths) {
+	Vector<String> parents;
+	for (const String &path : p_paths) {
+		const String type = EditorFileSystem::get_singleton()->get_file_type(path);
+		if (ClassDB::is_parent_class(type, ShaderMaterial::get_class_static()) || ClassDB::is_parent_class(type, MaterialInstance::get_class_static())) {
+			parents.push_back(path);
+		}
+	}
+	return parents;
+}
+
+void MaterialInstanceContextMenuPlugin::_create_instances(const Dictionary &p_data) {
+	const PackedStringArray selected_files = p_data.get("selected_files", PackedStringArray());
+	for (const String &path : _get_parent_files(selected_files)) {
+		Ref<Material> parent = ResourceLoader::load(path);
+		if (parent.is_valid()) {
+			EditorInspectorPluginMaterial::_create_material_instance(parent);
+		}
+	}
+}
+
+void MaterialInstanceContextMenuPlugin::get_options(const OptionsData &p_data) {
+	EditorContextMenuPlugin::get_options(p_data);
+
+	const PackedStringArray selected_files = p_data.get("selected_files", PackedStringArray());
+	if (_get_parent_files(selected_files).is_empty()) {
+		return;
+	}
+	const Ref<Texture2D> icon = EditorNode::get_singleton()->get_editor_theme()->get_icon(SNAME("Add"), EditorStringName(EditorIcons));
+	add_context_menu_item(TTR("Create Material Instance"), callable_mp(this, &MaterialInstanceContextMenuPlugin::_create_instances), icon);
 }
 
 String ParticleProcessMaterialConversionPlugin::converts_to() const {

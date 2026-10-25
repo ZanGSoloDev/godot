@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include "editor/inspector/editor_context_menu_plugin.h"
 #include "editor/inspector/editor_inspector.h"
 #include "editor/plugins/editor_plugin.h"
 #include "editor/plugins/editor_resource_conversion_plugin.h"
@@ -140,6 +141,18 @@ public:
 	virtual String get_plugin_name() const override { return "Material"; }
 
 	MaterialEditorPlugin();
+};
+
+// Adds "Create Material Instance" to the FileSystem dock context menu for ShaderMaterial and MaterialInstance files.
+class MaterialInstanceContextMenuPlugin : public EditorContextMenuPlugin {
+	GDCLASS(MaterialInstanceContextMenuPlugin, EditorContextMenuPlugin);
+
+	static Vector<String> _get_parent_files(const PackedStringArray &p_paths);
+	void _create_instances(const Dictionary &p_data);
+
+public:
+	using EditorContextMenuPlugin::get_options;
+	virtual void get_options(const OptionsData &p_data) override;
 };
 
 class ParticleProcessMaterialConversionPlugin : public EditorResourceConversionPlugin {
