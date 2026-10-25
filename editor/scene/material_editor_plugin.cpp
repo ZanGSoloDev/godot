@@ -142,6 +142,13 @@ void MaterialEditor::_notification(int p_what) {
 			error_label->add_theme_color_override(SceneStringName(font_color), get_theme_color(SNAME("error_color"), EditorStringName(Editor)));
 		} break;
 
+		case NOTIFICATION_RESIZED: {
+			// The preview mesh is sized to fill the camera's field of view, so keep the smaller side fixed
+			// for the mesh to fit both in the wide inspector preview and in tall panels.
+			const Size2 size = get_size();
+			camera->set_keep_aspect_mode(size.x < size.y ? Camera3D::KEEP_WIDTH : Camera3D::KEEP_HEIGHT);
+		} break;
+
 		case NOTIFICATION_DRAW: {
 			if (!is_unsupported_shader_mode) {
 				Size2 size = get_size();
