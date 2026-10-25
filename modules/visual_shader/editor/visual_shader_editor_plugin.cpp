@@ -4492,6 +4492,17 @@ void VisualShaderEditor::_setup_node(VisualShaderNode *p_node, const Vector<Vari
 		}
 	}
 
+	// STATIC SWITCH
+	{
+		VisualShaderNodeStaticSwitch *static_switch = Object::cast_to<VisualShaderNodeStaticSwitch>(p_node);
+
+		if (static_switch) {
+			ERR_FAIL_COND(p_ops[0].get_type() != Variant::INT);
+			static_switch->set_op_type((VisualShaderNodeStaticSwitch::OpType)(int)p_ops[0]);
+			return;
+		}
+	}
+
 	// FACEFORWARD
 	{
 		VisualShaderNodeFaceForward *face_forward = Object::cast_to<VisualShaderNodeFaceForward>(p_node);
@@ -8395,6 +8406,16 @@ VisualShaderEditor::VisualShaderEditor() {
 	add_options.push_back(AddOption("SwitchInt (==)", "Conditional/Functions", "VisualShaderNodeSwitch", TTR("Returns an associated integer scalar if the provided boolean value is true or false."), { VisualShaderNodeSwitch::OP_TYPE_INT }, VisualShaderNode::PORT_TYPE_SCALAR_INT));
 	add_options.push_back(AddOption("SwitchTransform (==)", "Conditional/Functions", "VisualShaderNodeSwitch", TTR("Returns an associated transform if the provided boolean value is true or false."), { VisualShaderNodeSwitch::OP_TYPE_TRANSFORM }, VisualShaderNode::PORT_TYPE_TRANSFORM));
 	add_options.push_back(AddOption("SwitchUInt (==)", "Conditional/Functions", "VisualShaderNodeSwitch", TTR("Returns an associated unsigned integer scalar if the provided boolean value is true or false."), { VisualShaderNodeSwitch::OP_TYPE_UINT }, VisualShaderNode::PORT_TYPE_SCALAR_UINT));
+
+	const String static_switch_desc = TTR("Static switch chosen per MaterialInstance. Resolved at compile time, so only the selected branch ends up in the shader.");
+	add_options.push_back(AddOption("StaticSwitchFloat", "Conditional/Static Switch", "VisualShaderNodeStaticSwitch", static_switch_desc, { VisualShaderNodeStaticSwitch::OP_TYPE_FLOAT }, VisualShaderNode::PORT_TYPE_SCALAR));
+	add_options.push_back(AddOption("StaticSwitchInt", "Conditional/Static Switch", "VisualShaderNodeStaticSwitch", static_switch_desc, { VisualShaderNodeStaticSwitch::OP_TYPE_INT }, VisualShaderNode::PORT_TYPE_SCALAR_INT));
+	add_options.push_back(AddOption("StaticSwitchUInt", "Conditional/Static Switch", "VisualShaderNodeStaticSwitch", static_switch_desc, { VisualShaderNodeStaticSwitch::OP_TYPE_UINT }, VisualShaderNode::PORT_TYPE_SCALAR_UINT));
+	add_options.push_back(AddOption("StaticSwitchVector2D", "Conditional/Static Switch", "VisualShaderNodeStaticSwitch", static_switch_desc, { VisualShaderNodeStaticSwitch::OP_TYPE_VECTOR_2D }, VisualShaderNode::PORT_TYPE_VECTOR_2D));
+	add_options.push_back(AddOption("StaticSwitchVector3D", "Conditional/Static Switch", "VisualShaderNodeStaticSwitch", static_switch_desc, { VisualShaderNodeStaticSwitch::OP_TYPE_VECTOR_3D }, VisualShaderNode::PORT_TYPE_VECTOR_3D));
+	add_options.push_back(AddOption("StaticSwitchVector4D", "Conditional/Static Switch", "VisualShaderNodeStaticSwitch", static_switch_desc, { VisualShaderNodeStaticSwitch::OP_TYPE_VECTOR_4D }, VisualShaderNode::PORT_TYPE_VECTOR_4D));
+	add_options.push_back(AddOption("StaticSwitchBool", "Conditional/Static Switch", "VisualShaderNodeStaticSwitch", static_switch_desc, { VisualShaderNodeStaticSwitch::OP_TYPE_BOOLEAN }, VisualShaderNode::PORT_TYPE_BOOLEAN));
+	add_options.push_back(AddOption("StaticSwitchTransform", "Conditional/Static Switch", "VisualShaderNodeStaticSwitch", static_switch_desc, { VisualShaderNodeStaticSwitch::OP_TYPE_TRANSFORM }, VisualShaderNode::PORT_TYPE_TRANSFORM));
 
 	add_options.push_back(AddOption("Compare (==)", "Conditional/Common", "VisualShaderNodeCompare", TTR("Returns the boolean result of the comparison between two parameters."), {}, VisualShaderNode::PORT_TYPE_BOOLEAN));
 	add_options.push_back(AddOption("Is", "Conditional/Common", "VisualShaderNodeIs", TTR("Returns the boolean result of the comparison between INF (or NaN) and a scalar parameter."), {}, VisualShaderNode::PORT_TYPE_BOOLEAN));

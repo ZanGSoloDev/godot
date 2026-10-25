@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="VisualShaderNodeStaticSwitch" inherits="VisualShaderNode" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../doc/class.xsd">
+	<brief_description>
+		A compile-time switch that can be toggled per [MaterialInstance].
+	</brief_description>
+	<description>
+		Outputs the [code]true[/code] input when the static switch [member switch_name] is enabled, and the [code]false[/code] input otherwise. Unlike [VisualShaderNodeSwitch], the choice is made when the shader is compiled, so the unused branch is removed from the shader variant. Several nodes can share the same [member switch_name].
+		The switch is set per material with [method MaterialInstance.set_static_switch], or in the [MaterialInstance] inspector.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="default_value" type="bool" setter="set_default_value" getter="get_default_value" default="false">
+			Value of the switch for materials that don't override it.
+		</member>
+		<member name="op_type" type="int" setter="set_op_type" getter="get_op_type" enum="VisualShaderNodeStaticSwitch.OpType" default="0">
+			The type of the inputs and output.
+		</member>
+		<member name="switch_name" type="String" setter="set_switch_name" getter="get_switch_name" default="&quot;USE_FEATURE&quot;">
+			Name of the static switch. Must be a valid identifier.
+		</member>
+	</members>
+	<constants>
+		<constant name="OP_TYPE_FLOAT" value="0" enum="OpType">
+			A floating-point scalar.
+		</constant>
+		<constant name="OP_TYPE_INT" value="1" enum="OpType">
+			An integer scalar.
+		</constant>
+		<constant name="OP_TYPE_UINT" value="2" enum="OpType">
+			An unsigned integer scalar.
+		</constant>
+		<constant name="OP_TYPE_VECTOR_2D" value="3" enum="OpType">
+			A 2D vector.
+		</constant>
+		<constant name="OP_TYPE_VECTOR_3D" value="4" enum="OpType">
+			A 3D vector.
+		</constant>
+		<constant name="OP_TYPE_VECTOR_4D" value="5" enum="OpType">
+			A 4D vector.
+		</constant>
+		<constant name="OP_TYPE_BOOLEAN" value="6" enum="OpType">
+			A boolean.
+		</constant>
+		<constant name="OP_TYPE_TRANSFORM" value="7" enum="OpType">
+			A transform ([code]mat4[/code]).
+		</constant>
+		<constant name="OP_TYPE_MAX" value="8" enum="OpType">
+			Represents the size of the [enum OpType] enum.
+		</constant>
+	</constants>
+</class>

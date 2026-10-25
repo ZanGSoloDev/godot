@@ -36,6 +36,7 @@
 #include "scene/resources/3d/primitive_meshes.h"
 #include "scene/resources/environment.h"
 #include "scene/resources/material.h"
+#include "scene/resources/material_instance.h"
 
 class Camera3D;
 class ColorRect;
@@ -127,6 +128,7 @@ public:
 	virtual void parse_begin(Object *p_object) override;
 
 	void _undo_redo_inspector_callback(Object *p_undo_redo, Object *p_edited, const String &p_property, const Variant &p_new_value);
+	static void _create_material_instance(const Ref<Material> &p_parent);
 
 	EditorInspectorPluginMaterial();
 };

@@ -35,6 +35,7 @@
 #include "core/error/error_macros.h"
 #include "core/io/resource_loader.h"
 #include "core/object/callable_mp.h"
+#include "core/core_string_names.h"
 #include "core/object/class_db.h"
 #include "core/object/property_info.h"
 #include "core/os/os.h"
@@ -450,6 +451,11 @@ void ShaderMaterial::set_shader_parameter(const StringName &p_param, const Varia
 		} else if (material_rid.is_valid()) {
 			RS::get_singleton()->material_set_param(material_rid, p_param, p_value);
 		}
+	}
+
+	// Lets MaterialInstances inheriting from this material pick up the new value.
+	if (has_connections(CoreStringName(changed))) {
+		emit_changed();
 	}
 }
 

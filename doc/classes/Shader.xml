@@ -35,6 +35,26 @@
 				If argument [param get_groups] is [code]true[/code], parameter grouping hints are also included in the list.
 			</description>
 		</method>
+		<method name="get_static_switch_default" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="name" type="StringName" />
+			<description>
+				Returns the default value of the static switch [param name], declared with [code]#pragma static_switch[/code].
+			</description>
+		</method>
+		<method name="get_static_switches" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+				Returns the static switches declared with [code]#pragma static_switch NAME true|false[/code], mapped to their default values. Static switches are set per [MaterialInstance].
+			</description>
+		</method>
+		<method name="has_static_switch" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="name" type="StringName" />
+			<description>
+				Returns [code]true[/code] if the shader declares the static switch [param name].
+			</description>
+		</method>
 		<method name="inspect_native_shader_code">
 			<return type="void" />
 			<description>

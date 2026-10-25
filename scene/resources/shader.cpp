@@ -72,6 +72,9 @@ void Shader::set_path(const String &p_path, bool p_take_over) {
 	if (shader_rid.is_valid()) {
 		RS::get_singleton()->shader_set_path_hint(shader_rid, p_path);
 	}
+	for (const KeyValue<String, StaticSwitchVariant> &E : static_switch_variants) {
+		RS::get_singleton()->shader_set_path_hint(E.value.rid, p_path);
+	}
 }
 
 void Shader::set_include_path(const String &p_path) {
@@ -97,11 +100,27 @@ void Shader::set_code(const String &p_code) {
 		// 1) Need to keep track of include dependencies at resource level
 		// 2) Server does not do interaction with Resource filetypes, this is a scene level feature.
 		HashSet<Ref<ShaderInclude>> new_include_dependencies;
+		LocalVector<ShaderPreprocessor::StaticSwitch> new_static_switches;
 		ShaderPreprocessor preprocessor;
-		Error result = preprocessor.preprocess(p_code, path, preprocessed_code, &new_include_dependencies);
+		Error result = preprocessor.preprocess(p_code, path, preprocessed_code, &new_include_dependencies, nullptr, &new_static_switches);
 		if (result == OK) {
 			// This ensures previous include resources are not freed and then re-loaded during parse (which would make compiling slower)
 			include_dependencies = new_include_dependencies;
+
+			static_switches.clear();
+			static_switch_defaults.clear();
+			for (const ShaderPreprocessor::StaticSwitch &E : new_static_switches) {
+				static_switches.push_back(E.name);
+				static_switch_defaults[E.name] = E.default_value;
+			}
+		}
+	}
+
+	{
+		// Variants are recompiled in place, so materials using them keep working with the new code.
+		MutexLock lock(shader_rid_mutex);
+		for (KeyValue<String, StaticSwitchVariant> &E : static_switch_variants) {
+			RenderingServer::get_singleton()->shader_set_code(E.value.rid, _preprocess_static_switch_variant(E.value.values));
 		}
 	}
 
@@ -215,6 +234,97 @@ RID Shader::get_rid() const {
 	return shader_rid;
 }
 
+Vector<StringName> Shader::get_static_switch_list() const {
+	_update_shader();
+	return static_switches;
+}
+
+bool Shader::has_static_switch(const StringName &p_name) const {
+	_update_shader();
+	return static_switch_defaults.has(p_name);
+}
+
+bool Shader::get_static_switch_default(const StringName &p_name) const {
+	_update_shader();
+	const bool *value = static_switch_defaults.getptr(p_name);
+	return value ? *value : false;
+}
+
+Dictionary Shader::get_static_switches() const {
+	_update_shader();
+	Dictionary ret;
+	for (const StringName &E : static_switches) {
+		ret[E] = static_switch_defaults[E];
+	}
+	return ret;
+}
+
+String Shader::_get_static_switch_variant_key(const Dictionary &p_values, HashMap<String, bool> &r_values) const {
+	// Only switches that differ from their default end up in the key, so the default combination maps to "".
+	String key;
+	for (const StringName &E : static_switches) {
+		const bool default_value = static_switch_defaults[E];
+		const bool value = p_values.has(E) ? bool(p_values[E]) : default_value;
+		r_values[E] = value;
+		if (value != default_value) {
+			key += String(E) + (value ? "=1;" : "=0;");
+		}
+	}
+	return key;
+}
+
+String Shader::_preprocess_static_switch_variant(const HashMap<String, bool> &p_values) const {
+	String path = get_path();
+	if (path.is_empty()) {
+		path = include_path;
+	}
+	String result;
+	ShaderPreprocessor preprocessor;
+	preprocessor.preprocess(code, path, result, nullptr, &p_values);
+	return result;
+}
+
+RID Shader::acquire_static_switch_variant(const Dictionary &p_values, String &r_key) const {
+	_update_shader();
+
+	HashMap<String, bool> values;
+	r_key = _get_static_switch_variant_key(p_values, values);
+	if (r_key.is_empty()) {
+		return get_rid();
+	}
+
+	MutexLock lock(shader_rid_mutex);
+	StaticSwitchVariant *variant = static_switch_variants.getptr(r_key);
+	if (!variant) {
+		StaticSwitchVariant new_variant;
+		new_variant.values = values;
+		new_variant.rid = RS::get_singleton()->shader_create_from_code(_preprocess_static_switch_variant(values), get_path());
+		for (const KeyValue<StringName, HashMap<int, Ref<Texture>>> &E : default_textures) {
+			for (const KeyValue<int, Ref<Texture>> &F : E.value) {
+				RS::get_singleton()->shader_set_default_texture_parameter(new_variant.rid, E.key, F.value->get_rid(), F.key);
+			}
+		}
+		variant = &static_switch_variants.insert(r_key, new_variant)->value;
+	}
+	variant->refcount++;
+	return variant->rid;
+}
+
+void Shader::release_static_switch_variant(const String &p_key) const {
+	if (p_key.is_empty()) {
+		return;
+	}
+
+	MutexLock lock(shader_rid_mutex);
+	StaticSwitchVariant *variant = static_switch_variants.getptr(p_key);
+	ERR_FAIL_NULL(variant);
+	variant->refcount--;
+	if (variant->refcount <= 0) {
+		RS::get_singleton()->free_rid(variant->rid);
+		static_switch_variants.erase(p_key);
+	}
+}
+
 void Shader::set_default_texture_parameter(const StringName &p_name, const Ref<Texture> &p_texture, int p_index) {
 	_check_shader_rid();
 
@@ -224,6 +334,9 @@ void Shader::set_default_texture_parameter(const StringName &p_name, const Ref<T
 		}
 		default_textures[p_name][p_index] = p_texture;
 		RS::get_singleton()->shader_set_default_texture_parameter(shader_rid, p_name, p_texture->get_rid(), p_index);
+		for (const KeyValue<String, StaticSwitchVariant> &E : static_switch_variants) {
+			RS::get_singleton()->shader_set_default_texture_parameter(E.value.rid, p_name, p_texture->get_rid(), p_index);
+		}
 	} else {
 		if (default_textures.has(p_name) && default_textures[p_name].has(p_index)) {
 			default_textures[p_name].erase(p_index);
@@ -233,6 +346,9 @@ void Shader::set_default_texture_parameter(const StringName &p_name, const Ref<T
 			}
 		}
 		RS::get_singleton()->shader_set_default_texture_parameter(shader_rid, p_name, RID(), p_index);
+		for (const KeyValue<String, StaticSwitchVariant> &E : static_switch_variants) {
+			RS::get_singleton()->shader_set_default_texture_parameter(E.value.rid, p_name, RID(), p_index);
+		}
 	}
 
 	emit_changed();
@@ -282,6 +398,10 @@ void Shader::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_include_path", "path"), &Shader::set_include_path);
 
+	ClassDB::bind_method(D_METHOD("get_static_switches"), &Shader::get_static_switches);
+	ClassDB::bind_method(D_METHOD("has_static_switch", "name"), &Shader::has_static_switch);
+	ClassDB::bind_method(D_METHOD("get_static_switch_default", "name"), &Shader::get_static_switch_default);
+
 	ClassDB::bind_method(D_METHOD("inspect_native_shader_code"), &Shader::inspect_native_shader_code);
 	ClassDB::set_method_flags(get_class_static(), StringName("inspect_native_shader_code"), METHOD_FLAGS_DEFAULT | METHOD_FLAG_EDITOR);
 
@@ -300,8 +420,13 @@ Shader::Shader() {
 }
 
 Shader::~Shader() {
-	if (shader_rid.is_valid()) {
+	if (shader_rid.is_valid() || !static_switch_variants.is_empty()) {
 		ERR_FAIL_NULL(RenderingServer::get_singleton());
+	}
+	if (shader_rid.is_valid()) {
 		RenderingServer::get_singleton()->free_rid(shader_rid);
+	}
+	for (const KeyValue<String, StaticSwitchVariant> &E : static_switch_variants) {
+		RenderingServer::get_singleton()->free_rid(E.value.rid);
 	}
 }

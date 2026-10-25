@@ -7208,6 +7208,194 @@ VisualShaderNodeSwitch::VisualShaderNodeSwitch() {
 	set_input_port_default_value(2, 0.0);
 }
 
+////////////// Static Switch
+
+String VisualShaderNodeStaticSwitch::get_caption() const {
+	return "StaticSwitch";
+}
+
+int VisualShaderNodeStaticSwitch::get_input_port_count() const {
+	return 2;
+}
+
+VisualShaderNodeStaticSwitch::PortType VisualShaderNodeStaticSwitch::get_input_port_type(int p_port) const {
+	return get_output_port_type(0);
+}
+
+String VisualShaderNodeStaticSwitch::get_input_port_name(int p_port) const {
+	return p_port == 0 ? "true" : "false";
+}
+
+int VisualShaderNodeStaticSwitch::get_output_port_count() const {
+	return 1;
+}
+
+VisualShaderNodeStaticSwitch::PortType VisualShaderNodeStaticSwitch::get_output_port_type(int p_port) const {
+	switch (op_type) {
+		case OP_TYPE_INT:
+			return PORT_TYPE_SCALAR_INT;
+		case OP_TYPE_UINT:
+			return PORT_TYPE_SCALAR_UINT;
+		case OP_TYPE_VECTOR_2D:
+			return PORT_TYPE_VECTOR_2D;
+		case OP_TYPE_VECTOR_3D:
+			return PORT_TYPE_VECTOR_3D;
+		case OP_TYPE_VECTOR_4D:
+			return PORT_TYPE_VECTOR_4D;
+		case OP_TYPE_BOOLEAN:
+			return PORT_TYPE_BOOLEAN;
+		case OP_TYPE_TRANSFORM:
+			return PORT_TYPE_TRANSFORM;
+		default:
+			break;
+	}
+	return PORT_TYPE_SCALAR;
+}
+
+String VisualShaderNodeStaticSwitch::get_output_port_name(int p_port) const {
+	return "result";
+}
+
+void VisualShaderNodeStaticSwitch::set_op_type(OpType p_op_type) {
+	ERR_FAIL_INDEX(int(p_op_type), int(OP_TYPE_MAX));
+	if (op_type == p_op_type) {
+		return;
+	}
+	switch (p_op_type) {
+		case OP_TYPE_FLOAT:
+			set_input_port_default_value(0, 1.0, get_input_port_default_value(0));
+			set_input_port_default_value(1, 0.0, get_input_port_default_value(1));
+			break;
+		case OP_TYPE_UINT:
+		case OP_TYPE_INT:
+			set_input_port_default_value(0, 1, get_input_port_default_value(0));
+			set_input_port_default_value(1, 0, get_input_port_default_value(1));
+			break;
+		case OP_TYPE_VECTOR_2D:
+			set_input_port_default_value(0, Vector2(1.0, 1.0), get_input_port_default_value(0));
+			set_input_port_default_value(1, Vector2(0.0, 0.0), get_input_port_default_value(1));
+			break;
+		case OP_TYPE_VECTOR_3D:
+			set_input_port_default_value(0, Vector3(1.0, 1.0, 1.0), get_input_port_default_value(0));
+			set_input_port_default_value(1, Vector3(0.0, 0.0, 0.0), get_input_port_default_value(1));
+			break;
+		case OP_TYPE_VECTOR_4D:
+			set_input_port_default_value(0, Quaternion(1.0, 1.0, 1.0, 1.0), get_input_port_default_value(0));
+			set_input_port_default_value(1, Quaternion(0.0, 0.0, 0.0, 0.0), get_input_port_default_value(1));
+			break;
+		case OP_TYPE_BOOLEAN:
+			set_input_port_default_value(0, true);
+			set_input_port_default_value(1, false);
+			break;
+		case OP_TYPE_TRANSFORM:
+			set_input_port_default_value(0, Transform3D());
+			set_input_port_default_value(1, Transform3D());
+			break;
+		default:
+			break;
+	}
+	op_type = p_op_type;
+	emit_changed();
+}
+
+VisualShaderNodeStaticSwitch::OpType VisualShaderNodeStaticSwitch::get_op_type() const {
+	return op_type;
+}
+
+void VisualShaderNodeStaticSwitch::set_switch_name(const String &p_name) {
+	if (switch_name == p_name) {
+		return;
+	}
+	switch_name = p_name;
+	emit_changed();
+}
+
+String VisualShaderNodeStaticSwitch::get_switch_name() const {
+	return switch_name;
+}
+
+void VisualShaderNodeStaticSwitch::set_default_value(bool p_enabled) {
+	if (default_value == p_enabled) {
+		return;
+	}
+	default_value = p_enabled;
+	emit_changed();
+}
+
+bool VisualShaderNodeStaticSwitch::get_default_value() const {
+	return default_value;
+}
+
+Vector<StringName> VisualShaderNodeStaticSwitch::get_editable_properties() const {
+	Vector<StringName> props;
+	props.push_back("switch_name");
+	props.push_back("default_value");
+	props.push_back("op_type");
+	return props;
+}
+
+bool VisualShaderNodeStaticSwitch::is_show_prop_names() const {
+	return true;
+}
+
+String VisualShaderNodeStaticSwitch::get_warning(Shader::Mode p_mode, VisualShader::Type p_type) const {
+	if (!switch_name.is_valid_ascii_identifier()) {
+		return RTR("The switch name must be a valid identifier (letters, digits and underscores).");
+	}
+	return String();
+}
+
+String VisualShaderNodeStaticSwitch::generate_global(Shader::Mode p_mode, VisualShader::Type p_type, int p_id) const {
+	if (!switch_name.is_valid_ascii_identifier()) {
+		return String();
+	}
+	// Several nodes may share a switch name; the preprocessor accepts redeclarations.
+	return "#pragma static_switch " + switch_name + (default_value ? " true\n" : " false\n");
+}
+
+String VisualShaderNodeStaticSwitch::generate_code(Shader::Mode p_mode, VisualShader::Type p_type, int p_id, const String *p_input_vars, const String *p_output_vars, bool p_for_preview) const {
+	if (!switch_name.is_valid_ascii_identifier()) {
+		return "	" + p_output_vars[0] + " = " + p_input_vars[default_value ? 0 : 1] + ";\n";
+	}
+
+	String code;
+	code += "#ifdef " + switch_name + "\n";
+	code += "	" + p_output_vars[0] + " = " + p_input_vars[0] + ";\n";
+	code += "#else\n";
+	code += "	" + p_output_vars[0] + " = " + p_input_vars[1] + ";\n";
+	code += "#endif\n";
+	return code;
+}
+
+void VisualShaderNodeStaticSwitch::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_op_type", "type"), &VisualShaderNodeStaticSwitch::set_op_type);
+	ClassDB::bind_method(D_METHOD("get_op_type"), &VisualShaderNodeStaticSwitch::get_op_type);
+	ClassDB::bind_method(D_METHOD("set_switch_name", "name"), &VisualShaderNodeStaticSwitch::set_switch_name);
+	ClassDB::bind_method(D_METHOD("get_switch_name"), &VisualShaderNodeStaticSwitch::get_switch_name);
+	ClassDB::bind_method(D_METHOD("set_default_value", "enabled"), &VisualShaderNodeStaticSwitch::set_default_value);
+	ClassDB::bind_method(D_METHOD("get_default_value"), &VisualShaderNodeStaticSwitch::get_default_value);
+
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "switch_name"), "set_switch_name", "get_switch_name");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "default_value"), "set_default_value", "get_default_value");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "op_type", PROPERTY_HINT_ENUM, "Float,Int,UInt,Vector2,Vector3,Vector4,Boolean,Transform"), "set_op_type", "get_op_type");
+
+	BIND_ENUM_CONSTANT(OP_TYPE_FLOAT);
+	BIND_ENUM_CONSTANT(OP_TYPE_INT);
+	BIND_ENUM_CONSTANT(OP_TYPE_UINT);
+	BIND_ENUM_CONSTANT(OP_TYPE_VECTOR_2D);
+	BIND_ENUM_CONSTANT(OP_TYPE_VECTOR_3D);
+	BIND_ENUM_CONSTANT(OP_TYPE_VECTOR_4D);
+	BIND_ENUM_CONSTANT(OP_TYPE_BOOLEAN);
+	BIND_ENUM_CONSTANT(OP_TYPE_TRANSFORM);
+	BIND_ENUM_CONSTANT(OP_TYPE_MAX);
+}
+
+VisualShaderNodeStaticSwitch::VisualShaderNodeStaticSwitch() {
+	simple_decl = false;
+	set_input_port_default_value(0, 1.0);
+	set_input_port_default_value(1, 0.0);
+}
+
 ////////////// Fresnel
 
 String VisualShaderNodeFresnel::get_caption() const {

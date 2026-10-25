@@ -61,6 +61,7 @@
 #include "scene/main/scene_tree.h"
 #include "scene/main/timer.h"
 #include "scene/property_utils.h"
+#include "scene/resources/material_instance.h"
 #include "scene/resources/packed_scene.h"
 #include "scene/resources/style_box_flat.h"
 #include "scene/scene_string_names.h"
@@ -5980,8 +5981,12 @@ void EditorInspector::_property_checked(const String &p_path, bool p_checked) {
 		} else {
 			Variant to_create;
 			Control *control = Object::cast_to<Control>(object);
+			MaterialInstance *material_instance = Object::cast_to<MaterialInstance>(object);
 			if (control && p_path.begins_with("theme_override_")) {
 				to_create = control->get_used_theme_item(p_path);
+			} else if (material_instance) {
+				// Start the override from the inherited value, like Unreal material instances.
+				to_create = material_instance->get_inherited_property_value(p_path);
 			} else {
 				List<PropertyInfo> pinfo;
 				object->get_property_list(&pinfo);

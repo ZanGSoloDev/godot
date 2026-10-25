@@ -64,6 +64,21 @@ private:
 
 	HashMap<StringName, HashMap<int, Ref<Texture>>> default_textures;
 
+	// Static switches declared with `#pragma static_switch`, in declaration order.
+	Vector<StringName> static_switches;
+	HashMap<StringName, bool> static_switch_defaults;
+
+	// Compiled variants for non-default static switch combinations, shared by every material using them.
+	struct StaticSwitchVariant {
+		HashMap<String, bool> values;
+		RID rid;
+		int refcount = 0;
+	};
+	mutable HashMap<String, StaticSwitchVariant> static_switch_variants;
+
+	String _get_static_switch_variant_key(const Dictionary &p_values, HashMap<String, bool> &r_values) const;
+	String _preprocess_static_switch_variant(const HashMap<String, bool> &p_values) const;
+
 	void _check_shader_rid() const;
 	void _dependency_changed();
 	void _recompile();
@@ -98,6 +113,16 @@ public:
 	void get_default_texture_parameter_list(List<StringName> *r_textures) const;
 
 	virtual bool is_text_shader() const;
+
+	Vector<StringName> get_static_switch_list() const;
+	bool has_static_switch(const StringName &p_name) const;
+	bool get_static_switch_default(const StringName &p_name) const;
+	Dictionary get_static_switches() const;
+
+	// Returns the shader RID to use for the given static switch values (missing switches use their default).
+	// Every call must be paired with `release_static_switch_variant()` using the returned key.
+	RID acquire_static_switch_variant(const Dictionary &p_values, String &r_key) const;
+	void release_static_switch_variant(const String &p_key) const;
 
 	virtual RID get_rid() const override;
 

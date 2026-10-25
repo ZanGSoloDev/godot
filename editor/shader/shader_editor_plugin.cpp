@@ -39,8 +39,10 @@
 #include "editor/settings/editor_command_palette.h"
 #include "editor/settings/editor_settings.h"
 #include "editor/shader/editor_shader_language_plugin.h"
+#include "editor/shader/material_preview_panel.h"
 #include "editor/shader/text_shader_language_plugin.h"
 #include "editor/themes/editor_scale.h"
+#include "scene/gui/split_container.h"
 #include "scene/resources/shader.h"
 
 void ShaderEditorPlugin::shortcut_input(const Ref<InputEvent> &p_event) {
@@ -166,7 +168,14 @@ ShaderEditorPlugin::ShaderEditorPlugin() {
 	shader_container = memnew(DocumentEditorContainer(false, config_section, "shader_editor_cache.cfg"));
 	shader_container->set_handled_resource_types({ "Shader", "VisualShader", "ShaderInclude" });
 
-	shader_dock->add_child(shader_container);
+	// Graph/code on the left, live material preview on the right, like Unreal's material editor.
+	HSplitContainer *split = memnew(HSplitContainer);
+	shader_dock->add_child(split);
+
+	shader_container->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	split->add_child(shader_container);
+	split->add_child(memnew(MaterialPreviewPanel(shader_container)));
+
 	shader_dock->connect("_focused", callable_mp(shader_container, &DocumentEditorContainer::focus_active_editor));
 }
 

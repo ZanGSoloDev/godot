@@ -31,10 +31,14 @@
 #include "material_editor_plugin.h"
 
 #include "core/config/project_settings.h"
+#include "core/io/file_access.h"
+#include "core/io/resource_loader.h"
+#include "core/io/resource_saver.h"
 #include "core/object/callable_mp.h"
 #include "editor/editor_node.h"
 #include "editor/editor_string_names.h"
 #include "editor/editor_undo_redo_manager.h"
+#include "editor/file_system/editor_file_system.h"
 #include "editor/settings/editor_settings.h"
 #include "editor/themes/editor_scale.h"
 #include "scene/gui/box_container.h"
@@ -468,6 +472,41 @@ void EditorInspectorPluginMaterial::parse_begin(Object *p_object) {
 	MaterialEditor *editor = memnew(MaterialEditor);
 	editor->edit(m, env);
 	add_custom_control(editor);
+
+	if (Object::cast_to<ShaderMaterial>(material) || Object::cast_to<MaterialInstance>(material)) {
+		Button *create_instance = memnew(Button(TTR("Create Material Instance")));
+		create_instance->set_button_icon(EditorNode::get_singleton()->get_editor_theme()->get_icon(SNAME("Add"), EditorStringName(EditorIcons)));
+		if (m->get_path().is_resource_file()) {
+			create_instance->set_tooltip_text(TTR("Create a MaterialInstance file inheriting from this material, next to it."));
+			create_instance->connect(SceneStringName(pressed), callable_mp_static(&EditorInspectorPluginMaterial::_create_material_instance).bind(m));
+		} else {
+			create_instance->set_disabled(true);
+			create_instance->set_tooltip_text(TTR("Save this material to its own file first."));
+		}
+		add_custom_control(create_instance);
+	}
+}
+
+void EditorInspectorPluginMaterial::_create_material_instance(const Ref<Material> &p_parent) {
+	const String base_dir = p_parent->get_path().get_base_dir();
+	const String base_name = "MI_" + p_parent->get_path().get_file().get_basename().trim_prefix("MI_").trim_prefix("M_");
+
+	String path = base_dir.path_join(base_name + ".tres");
+	for (int i = 2; FileAccess::exists(path); i++) {
+		path = base_dir.path_join(base_name + "_" + itos(i) + ".tres");
+	}
+
+	Ref<MaterialInstance> instance;
+	instance.instantiate();
+	instance->set_parent(p_parent);
+
+	Error err = ResourceSaver::save(instance, path);
+	if (err != OK) {
+		EditorNode::get_singleton()->show_warning(vformat(TTR("Error saving MaterialInstance to \"%s\"."), path));
+		return;
+	}
+	EditorFileSystem::get_singleton()->update_file(path);
+	EditorNode::get_singleton()->edit_resource(ResourceLoader::load(path));
 }
 
 void EditorInspectorPluginMaterial::_undo_redo_inspector_callback(Object *p_undo_redo, Object *p_edited, const String &p_property, const Variant &p_new_value) {

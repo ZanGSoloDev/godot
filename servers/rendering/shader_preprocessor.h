@@ -132,6 +132,16 @@ private:
 		bool is_builtin = false;
 	};
 
+public:
+	// Declared with `#pragma static_switch NAME [true|false]`. When enabled, NAME is defined,
+	// so shader code can use `#ifdef NAME` to strip code at compile time (one shader variant per combination).
+	struct StaticSwitch {
+		String name;
+		bool default_value = false;
+	};
+
+private:
+
 	struct Branch {
 		Vector<bool> conditions;
 		Branch *parent = nullptr;
@@ -164,6 +174,8 @@ private:
 		CompletionType completion_type = COMPLETION_TYPE_NONE;
 		HashSet<Ref<ShaderInclude>> shader_includes;
 		bool completion_show_defines = false;
+		const HashMap<String, bool> *static_switch_values = nullptr;
+		LocalVector<StaticSwitch> static_switches;
 	};
 
 private:
@@ -196,6 +208,7 @@ private:
 	void process_ifndef(Tokenizer *p_tokenizer);
 	void process_include(Tokenizer *p_tokenizer);
 	void process_pragma(Tokenizer *p_tokenizer);
+	void process_static_switch(Tokenizer *p_tokenizer, int p_line);
 	void process_undef(Tokenizer *p_tokenizer);
 
 	void add_region(int p_line, bool p_enabled, Region *p_parent_region);
@@ -222,7 +235,7 @@ private:
 	void _prepare_state(ShaderPreprocessor::State &rp_state, const String &p_filename, bool p_save_regions);
 
 public:
-	Error preprocess(const String &p_code, const String &p_filename, String &r_result, HashSet<Ref<ShaderInclude>> *r_includes = nullptr);
+	Error preprocess(const String &p_code, const String &p_filename, String &r_result, HashSet<Ref<ShaderInclude>> *r_includes = nullptr, const HashMap<String, bool> *p_static_switch_values = nullptr, LocalVector<StaticSwitch> *r_static_switches = nullptr);
 
 #ifdef TOOLS_ENABLED
 	typedef void (*IncludeCompletionFunction)(List<EditorLanguage::CompletionOption> *);

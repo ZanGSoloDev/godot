@@ -150,6 +150,7 @@ void initialize_visual_shader_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_CLASS(VisualShaderNodeScreenNormalWorldSpace);
 		GDREGISTER_CLASS(VisualShaderNodeIf);
 		GDREGISTER_CLASS(VisualShaderNodeSwitch);
+		GDREGISTER_CLASS(VisualShaderNodeStaticSwitch);
 		GDREGISTER_CLASS(VisualShaderNodeFresnel);
 		GDREGISTER_CLASS(VisualShaderNodeExpression);
 		GDREGISTER_CLASS(VisualShaderNodeGlobalExpression);

@@ -801,6 +801,9 @@ void ShaderPreprocessor::process_pragma(Tokenizer *p_tokenizer) {
 	// If more pragma options are created, then refactor into a more defined structure.
 	if (label == "disable_preprocessor") {
 		state->disabled = true;
+	} else if (label == "static_switch") {
+		process_static_switch(p_tokenizer, line);
+		return;
 	} else {
 		set_error(vformat(RTR("Invalid '%s' directive."), "pragma"), line);
 		return;
@@ -809,6 +812,47 @@ void ShaderPreprocessor::process_pragma(Tokenizer *p_tokenizer) {
 	if (!p_tokenizer->consume_empty_line()) {
 		set_error(vformat(RTR("Invalid '%s' directive."), "pragma"), line);
 		return;
+	}
+}
+
+void ShaderPreprocessor::process_static_switch(Tokenizer *p_tokenizer, int p_line) {
+	const String name = p_tokenizer->get_identifier();
+	if (name.is_empty()) {
+		set_error(RTR("Invalid static switch name."), p_line);
+		return;
+	}
+
+	const String value = tokens_to_string(p_tokenizer->advance('\n')).strip_edges();
+	bool default_value = false;
+	if (value == "true" || value == "1") {
+		default_value = true;
+	} else if (!value.is_empty() && value != "false" && value != "0") {
+		set_error(RTR("Static switch default value must be 'true' or 'false'."), p_line);
+		return;
+	}
+
+	for (const StaticSwitch &E : state->static_switches) {
+		if (E.name == name) {
+			// Redeclaring (e.g. from several visual shader nodes or includes) is allowed, the first default wins.
+			return;
+		}
+	}
+
+	StaticSwitch static_switch;
+	static_switch.name = name;
+	static_switch.default_value = default_value;
+	state->static_switches.push_back(static_switch);
+
+	bool enabled = default_value;
+	if (state->static_switch_values && state->static_switch_values->has(name)) {
+		enabled = state->static_switch_values->get(name);
+	}
+	if (enabled) {
+		if (state->defines.has(name)) {
+			set_error(RTR("Static switch name is already used by a macro."), p_line);
+			return;
+		}
+		state->defines[name] = create_define("1");
 	}
 }
 
@@ -1361,12 +1405,16 @@ void ShaderPreprocessor::_prepare_state(ShaderPreprocessor::State &rp_state, con
 	}
 }
 
-Error ShaderPreprocessor::preprocess(const String &p_code, const String &p_filename, String &r_result, HashSet<Ref<ShaderInclude>> *r_includes) {
+Error ShaderPreprocessor::preprocess(const String &p_code, const String &p_filename, String &r_result, HashSet<Ref<ShaderInclude>> *r_includes, const HashMap<String, bool> *p_static_switch_values, LocalVector<StaticSwitch> *r_static_switches) {
 	State pp_state;
 	_prepare_state(pp_state, p_filename, false);
+	pp_state.static_switch_values = p_static_switch_values;
 	Error err = preprocess(&pp_state, p_code, r_result);
 	if (r_includes) {
 		*r_includes = pp_state.shader_includes;
+	}
+	if (r_static_switches) {
+		*r_static_switches = pp_state.static_switches;
 	}
 	clear_state();
 	return err;
@@ -1471,6 +1519,7 @@ void ShaderPreprocessor::get_keyword_list(List<String> *r_keywords, bool p_inclu
 
 void ShaderPreprocessor::get_pragma_list(List<String> *r_pragmas) {
 	r_pragmas->push_back("disable_preprocessor");
+	r_pragmas->push_back("static_switch");
 }
 
 ShaderPreprocessor::ShaderPreprocessor() {

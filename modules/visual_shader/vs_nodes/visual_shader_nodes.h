@@ -2702,6 +2702,69 @@ public:
 VARIANT_ENUM_CAST(VisualShaderNodeSwitch::OpType)
 
 ///////////////////////////////////////
+/// STATIC SWITCH
+///////////////////////////////////////
+
+// Unreal-style static switch: chosen per material instance and resolved at compile time,
+// so only the selected branch ends up in the compiled shader variant.
+class VisualShaderNodeStaticSwitch : public VisualShaderNode {
+	GDCLASS(VisualShaderNodeStaticSwitch, VisualShaderNode);
+
+public:
+	enum OpType {
+		OP_TYPE_FLOAT,
+		OP_TYPE_INT,
+		OP_TYPE_UINT,
+		OP_TYPE_VECTOR_2D,
+		OP_TYPE_VECTOR_3D,
+		OP_TYPE_VECTOR_4D,
+		OP_TYPE_BOOLEAN,
+		OP_TYPE_TRANSFORM,
+		OP_TYPE_MAX,
+	};
+
+protected:
+	OpType op_type = OP_TYPE_FLOAT;
+	String switch_name = "USE_FEATURE";
+	bool default_value = false;
+
+	static void _bind_methods();
+
+public:
+	virtual String get_caption() const override;
+
+	virtual int get_input_port_count() const override;
+	virtual PortType get_input_port_type(int p_port) const override;
+	virtual String get_input_port_name(int p_port) const override;
+
+	virtual int get_output_port_count() const override;
+	virtual PortType get_output_port_type(int p_port) const override;
+	virtual String get_output_port_name(int p_port) const override;
+
+	void set_op_type(OpType p_op_type);
+	OpType get_op_type() const;
+
+	void set_switch_name(const String &p_name);
+	String get_switch_name() const;
+
+	void set_default_value(bool p_enabled);
+	bool get_default_value() const;
+
+	virtual Vector<StringName> get_editable_properties() const override;
+	virtual bool is_show_prop_names() const override;
+	virtual String get_warning(Shader::Mode p_mode, VisualShader::Type p_type) const override;
+
+	virtual String generate_global(Shader::Mode p_mode, VisualShader::Type p_type, int p_id) const override;
+	virtual String generate_code(Shader::Mode p_mode, VisualShader::Type p_type, int p_id, const String *p_input_vars, const String *p_output_vars, bool p_for_preview = false) const override;
+
+	virtual Category get_category() const override { return CATEGORY_CONDITIONAL; }
+
+	VisualShaderNodeStaticSwitch();
+};
+
+VARIANT_ENUM_CAST(VisualShaderNodeStaticSwitch::OpType)
+
+///////////////////////////////////////
 /// FRESNEL
 ///////////////////////////////////////
 

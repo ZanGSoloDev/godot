@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="MaterialInstance" inherits="Material" api_type="core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../class.xsd">
+	<brief_description>
+		A material that inherits its shader, parameters and static switches from a parent material and only stores what it overrides.
+	</brief_description>
+	<description>
+		Works like material instances in Unreal Engine. The [member parent] is either a master [ShaderMaterial] or another [MaterialInstance], forming a chain. Every shader parameter and static switch is inherited from the parent unless this instance overrides it. Changes made to the parent are picked up automatically, and only overridden values are saved.
+		Static switches are declared in the master shader with [code]#pragma static_switch NAME true[/code] (or [code]false[/code]) and tested with [code]#ifdef NAME[/code]. With visual shaders, use [VisualShaderNodeStaticSwitch]. Unlike uniforms, static switches are resolved at compile time: each combination of switch values used by an instance is compiled into its own shader variant, so disabled branches cost nothing at runtime. Variants are shared between instances using the same combination.
+		In the inspector, check a property to override it. Unchecking it reverts to the inherited value.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="clear_shader_parameter">
+			<return type="void" />
+			<param index="0" name="param" type="StringName" />
+			<description>
+				Removes the override for [param param], so the value is inherited from [member parent] again.
+			</description>
+		</method>
+		<method name="clear_static_switch">
+			<return type="void" />
+			<param index="0" name="name" type="StringName" />
+			<description>
+				Removes the override for the static switch [param name], so its value is inherited from [member parent] again.
+			</description>
+		</method>
+		<method name="get_inherited_shader_parameter" qualifiers="const">
+			<return type="Variant" />
+			<param index="0" name="param" type="StringName" />
+			<description>
+				Returns the value [param param] would have without this instance's override.
+			</description>
+		</method>
+		<method name="get_inherited_static_switch" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="name" type="StringName" />
+			<description>
+				Returns the value the static switch [param name] would have without this instance's override.
+			</description>
+		</method>
+		<method name="get_master_material" qualifiers="const">
+			<return type="ShaderMaterial" />
+			<description>
+				Returns the [ShaderMaterial] at the root of the parent chain, or [code]null[/code] if there is none.
+			</description>
+		</method>
+		<method name="get_shader" qualifiers="const">
+			<return type="Shader" />
+			<description>
+				Returns the [Shader] of the master material.
+			</description>
+		</method>
+		<method name="get_shader_rid" qualifiers="const">
+			<return type="RID" />
+			<description>
+				Returns the RID of the shader variant used by this instance, which depends on its static switches. With default switches, this is the master [Shader]'s RID.
+			</description>
+		</method>
+		<method name="get_shader_parameter" qualifiers="const">
+			<return type="Variant" />
+			<param index="0" name="param" type="StringName" />
+			<description>
+				Returns the effective value of the shader parameter [param param]: the override if there is one, otherwise the inherited value.
+			</description>
+		</method>
+		<method name="get_static_switch" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="name" type="StringName" />
+			<description>
+				Returns the effective value of the static switch [param name].
+			</description>
+		</method>
+		<method name="get_static_switches" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+				Returns the effective value of every static switch declared by the master shader, keyed by name.
+			</description>
+		</method>
+		<method name="is_shader_parameter_overridden" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="param" type="StringName" />
+			<description>
+				Returns [code]true[/code] if this instance overrides [param param].
+			</description>
+		</method>
+		<method name="is_static_switch_overridden" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="name" type="StringName" />
+			<description>
+				Returns [code]true[/code] if this instance overrides the static switch [param name].
+			</description>
+		</method>
+		<method name="set_shader_parameter">
+			<return type="void" />
+			<param index="0" name="param" type="StringName" />
+			<param index="1" name="value" type="Variant" />
+			<description>
+				Overrides the shader parameter [param param]. Passing [code]null[/code] removes the override.
+			</description>
+		</method>
+		<method name="set_static_switch">
+			<return type="void" />
+			<param index="0" name="name" type="StringName" />
+			<param index="1" name="enabled" type="bool" />
+			<description>
+				Overrides the static switch [param name]. This selects a different shader variant, which is compiled the first time the combination is used.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="parent" type="Material" setter="set_parent" getter="get_parent">
+			The material values are inherited from. Must be a [ShaderMaterial] or another [MaterialInstance].
+		</member>
+	</members>
+</class>
