@@ -33,7 +33,6 @@
 #include "scene/gui/box_container.h"
 #include "scene/resources/material_instance.h"
 
-class Button;
 class DocumentEditorContainer;
 class Environment;
 class Label;
@@ -48,7 +47,6 @@ class MaterialPreviewPanel : public VBoxContainer {
 	DocumentEditorContainer *container = nullptr;
 
 	Label *source_label = nullptr;
-	Button *collapse_button = nullptr;
 	VBoxContainer *body = nullptr;
 	MaterialEditor *preview = nullptr;
 	VBoxContainer *switches_box = nullptr;
@@ -71,7 +69,6 @@ class MaterialPreviewPanel : public VBoxContainer {
 	void _poll();
 	void _update_switches();
 	void _switch_toggled(bool p_enabled, const StringName &p_name);
-	void _collapse_toggled(bool p_collapsed);
 
 protected:
 	void _notification(int p_what);

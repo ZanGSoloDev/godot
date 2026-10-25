@@ -37,7 +37,6 @@
 #include "editor/script/script_editor_base.h"
 #include "editor/script/script_editor_plugin.h"
 #include "editor/themes/editor_scale.h"
-#include "scene/gui/button.h"
 #include "scene/gui/check_box.h"
 #include "scene/gui/label.h"
 #include "scene/gui/separator.h"
@@ -137,17 +136,10 @@ void MaterialPreviewPanel::_switch_toggled(bool p_enabled, const StringName &p_n
 	scratch_instance->set_static_switch(p_name, p_enabled);
 }
 
-void MaterialPreviewPanel::_collapse_toggled(bool p_collapsed) {
-	body->set_visible(!p_collapsed);
-	source_label->set_visible(!p_collapsed);
-	collapse_button->set_text(p_collapsed ? String::utf8("◀") : String::utf8("▶"));
-	set_custom_minimum_size(Size2(p_collapsed ? 0 : 260 * EDSCALE, 0));
-}
-
 void MaterialPreviewPanel::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_PROCESS: {
-			if (!is_visible_in_tree() || !body->is_visible()) {
+			if (!is_visible_in_tree()) {
 				return;
 			}
 			poll_time -= get_process_delta_time();
@@ -175,20 +167,9 @@ MaterialPreviewPanel::MaterialPreviewPanel(DocumentEditorContainer *p_container)
 	scratch_instance.instantiate();
 	scratch_instance->set_parent(scratch_master);
 
-	HBoxContainer *header = memnew(HBoxContainer);
-	add_child(header);
-
-	collapse_button = memnew(Button);
-	collapse_button->set_flat(true);
-	collapse_button->set_toggle_mode(true);
-	collapse_button->set_text(String::utf8("▶"));
-	collapse_button->set_tooltip_text(TTR("Show/hide the material preview."));
-	collapse_button->connect(SceneStringName(toggled), callable_mp(this, &MaterialPreviewPanel::_collapse_toggled));
-	header->add_child(collapse_button);
-
 	Label *title = memnew(Label(TTR("Material Preview")));
 	title->set_theme_type_variation("HeaderSmall");
-	header->add_child(title);
+	add_child(title);
 
 	source_label = memnew(Label);
 	source_label->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
