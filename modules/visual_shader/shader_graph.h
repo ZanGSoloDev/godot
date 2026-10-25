@@ -94,11 +94,25 @@ public:
 	static constexpr int NODE_ID_INVALID = -1;
 	static constexpr int NODE_ID_OUTPUT = 0;
 
+	// Static switch values a node needs for its output to be used (switch name -> branch),
+	// i.e. the branches shared by every path from the node to a root.
+	typedef HashMap<String, bool> StaticSwitchCondition;
+
+	// Preprocessor directives wrapping the code of a node only used inside static switch branches.
+	struct StaticSwitchGuard {
+		String open;
+		String close;
+	};
+
+	static void intersect_static_switch_conditions(StaticSwitchCondition &r_condition, const StaticSwitchCondition &p_other);
+	static StaticSwitchGuard make_static_switch_guard(const StaticSwitchCondition &p_condition);
+
 private:
 	RBMap<int, Node> nodes;
 	List<Connection> connections;
 
 	void _node_changed();
+	bool _get_static_switch_condition(int p_node, const HashSet<int> &p_roots, const HashMap<int, LocalVector<const Connection *>> &p_consumers, HashMap<int, StaticSwitchCondition> &r_conditions, HashSet<int> &r_unused) const;
 
 	bool _check_reroute_subgraph(int p_target_port_type, int p_reroute_node, List<int> *r_visited_reroute_nodes = nullptr) const;
 	bool _depends_on_instance_parameter(int p_node, HashSet<int> &r_visited) const;
@@ -158,6 +172,9 @@ public:
 
 	String generate_preview_shader(int p_node, int p_port, Vector<DefaultTextureParam> &r_default_tex_params, const String &p_additional_global_code = String()) const;
 
+	// Computes the static switch condition of every node used by p_roots. Unused nodes are left out.
+	void get_static_switch_conditions(const HashSet<int> &p_roots, HashMap<int, StaticSwitchCondition> &r_conditions) const;
+
 	// Recursively writes the code for p_node and everything it depends on.
 	void write_node(
 			StringBuilder *p_global_code,
@@ -172,7 +189,8 @@ public:
 			bool p_for_preview,
 			HashSet<StringName> &r_classes,
 			Type p_type = TYPE_MAX, // Only used for VisualShader.
-			Shader::Mode p_mode = Shader::MODE_MAX // Only used for VisualShader.
+			Shader::Mode p_mode = Shader::MODE_MAX, // Only used for VisualShader.
+			const HashMap<int, StaticSwitchGuard> *p_static_switch_guards = nullptr // Only used for VisualShader.
 	) const;
 
 	String validate_port_name(const String &p_port_name, VisualShaderNode *p_node, int p_port_id, bool p_output) const;

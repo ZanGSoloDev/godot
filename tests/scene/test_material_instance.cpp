@@ -312,6 +312,74 @@ TEST_CASE("[SceneTree][MaterialInstance] Visual shader static switch node") {
 		CHECK(instance->get_shader_rid() != default_rid);
 	}
 }
+
+TEST_CASE("[SceneTree][MaterialInstance] Visual shader code only used by a switch branch is stripped") {
+	Ref<VisualShader> vs;
+	vs.instantiate();
+	const VisualShader::Type type = VisualShader::TYPE_FRAGMENT;
+
+	// emission_color -> USE_EMISSION (true) -> Albedo.
+	Ref<VisualShaderNodeColorParameter> emission_color;
+	emission_color.instantiate();
+	emission_color->set_parameter_name("emission_color");
+	vs->add_node(type, emission_color, Vector2(), 2);
+
+	// base_color feeds both branches, so it must stay unconditional.
+	Ref<VisualShaderNodeColorParameter> base_color;
+	base_color.instantiate();
+	base_color->set_parameter_name("base_color");
+	vs->add_node(type, base_color, Vector2(), 3);
+
+	Ref<VisualShaderNodeVectorOp> add;
+	add.instantiate();
+	add->set_op_type(VisualShaderNodeVectorOp::OP_TYPE_VECTOR_3D);
+	vs->add_node(type, add, Vector2(), 4);
+	vs->connect_nodes(type, 2, 0, 4, 0);
+	vs->connect_nodes(type, 3, 0, 4, 1);
+
+	Ref<VisualShaderNodeStaticSwitch> static_switch;
+	static_switch.instantiate();
+	static_switch->set_switch_name("USE_EMISSION");
+	static_switch->set_op_type(VisualShaderNodeStaticSwitch::OP_TYPE_VECTOR_3D);
+	vs->add_node(type, static_switch, Vector2(), 5);
+	vs->connect_nodes(type, 4, 0, 5, 0);
+	vs->connect_nodes(type, 3, 0, 5, 1);
+	vs->connect_nodes(type, 5, 0, 0, 0); // Albedo.
+
+	const String code = vs->get_code();
+	CHECK(code.contains("#ifdef USE_EMISSION\nuniform vec4 emission_color"));
+	CHECK_FALSE(code.contains("#ifdef USE_EMISSION\nuniform vec4 base_color"));
+	// The declaration of a nested switch is never wrapped.
+	CHECK(code.find("#pragma static_switch USE_EMISSION") < code.find("#ifdef USE_EMISSION"));
+
+	Ref<ShaderMaterial> master;
+	master.instantiate();
+	master->set_shader(vs);
+	Ref<MaterialInstance> instance;
+	instance.instantiate();
+	instance->set_parent(master);
+	instance->get_rid();
+	CHECK_FALSE(has_uniform(instance->get_shader_rid(), "emission_color"));
+	CHECK(has_uniform(instance->get_shader_rid(), "base_color"));
+
+	instance->set_static_switch("USE_EMISSION", true);
+	CHECK(has_uniform(instance->get_shader_rid(), "emission_color"));
+	CHECK(has_uniform(instance->get_shader_rid(), "base_color"));
+
+	SUBCASE("Parameters also used outside the branch stay unconditional") {
+		Ref<VisualShaderNodeParameterRef> parameter_ref;
+		parameter_ref.instantiate();
+		parameter_ref->set_parameter_name("emission_color");
+		parameter_ref->set("param_type", VisualShaderNodeParameterRef::PARAMETER_TYPE_COLOR); // Resolved by the editor otherwise.
+		vs->add_node(type, parameter_ref, Vector2(), 6);
+		vs->connect_nodes(type, 6, 0, 0, 5); // Emission.
+
+		const String new_code = vs->get_code();
+		CHECK_FALSE(new_code.contains("#ifdef USE_EMISSION\nuniform vec4 emission_color"));
+		instance->clear_static_switch("USE_EMISSION");
+		CHECK(has_uniform(instance->get_shader_rid(), "emission_color"));
+	}
+}
 #endif // MODULE_VISUAL_SHADER_ENABLED
 
 } // namespace TestMaterialInstance

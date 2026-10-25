@@ -205,7 +205,8 @@ void ShaderGraph::write_node(
 		bool p_for_preview,
 		HashSet<StringName> &r_classes,
 		Type p_type,
-		Shader::Mode p_mode) const {
+		Shader::Mode p_mode,
+		const HashMap<int, StaticSwitchGuard> *p_static_switch_guards) const {
 	const Ref<VisualShaderNode> vsnode = nodes[p_node].node;
 
 	if (vsnode->is_disabled()) {
@@ -227,11 +228,14 @@ void ShaderGraph::write_node(
 				continue;
 			}
 
-			write_node(p_global_code, p_global_code_per_node, p_global_code_per_func, r_code, r_def_tex_params, p_input_connections, p_output_connections, from_node, r_processed, p_for_preview, r_classes, p_type, p_mode);
+			write_node(p_global_code, p_global_code_per_node, p_global_code_per_func, r_code, r_def_tex_params, p_input_connections, p_output_connections, from_node, r_processed, p_for_preview, r_classes, p_type, p_mode, p_static_switch_guards);
 		}
 	}
 
 	// Then this node.
+
+	// Nodes only used inside static switch branches are compiled out with them, along with their uniforms.
+	const StaticSwitchGuard *guard = p_static_switch_guards ? p_static_switch_guards->getptr(p_node) : nullptr;
 
 	Vector<ShaderGraph::DefaultTextureParam> params = vsnode->get_default_texture_parameters((VisualShader::Type)p_type, p_node);
 	for (int i = 0; i < params.size(); i++) {
@@ -244,8 +248,14 @@ void ShaderGraph::write_node(
 	if (!skip_global) {
 		Ref<VisualShaderNodeParameter> parameter = vsnode;
 		if (!parameter.is_valid() || !parameter->is_global_code_generated()) {
-			if (p_global_code) {
-				*p_global_code += vsnode->generate_global(p_mode, (VisualShader::Type)p_type, p_node);
+			// With guards, VisualShader declares static switches itself before any code that tests them.
+			const bool is_declared_switch = p_static_switch_guards && Object::cast_to<VisualShaderNodeStaticSwitch>(vsnode.ptr());
+			if (p_global_code && !is_declared_switch) {
+				String global_code = vsnode->generate_global(p_mode, (VisualShader::Type)p_type, p_node);
+				if (guard && !global_code.is_empty()) {
+					global_code = guard->open + global_code + guard->close;
+				}
+				*p_global_code += global_code;
 			}
 		}
 
@@ -279,6 +289,10 @@ void ShaderGraph::write_node(
 	if (!vsnode->is_code_generated()) { // Just generate globals and ignore locals.
 		r_processed.insert(p_node);
 		return;
+	}
+
+	if (guard) {
+		r_code += guard->open;
 	}
 
 	String node_name = "// " + vsnode->get_caption() + ":" + itos(p_node) + "\n";
@@ -782,7 +796,109 @@ void ShaderGraph::write_node(
 		r_code += "\n\n";
 	}
 
+	if (guard) {
+		r_code += guard->close;
+	}
+
 	r_processed.insert(p_node);
+}
+
+void ShaderGraph::intersect_static_switch_conditions(StaticSwitchCondition &r_condition, const StaticSwitchCondition &p_other) {
+	LocalVector<String> to_erase;
+	for (const KeyValue<String, bool> &E : r_condition) {
+		const bool *other = p_other.getptr(E.key);
+		if (!other || *other != E.value) {
+			to_erase.push_back(E.key);
+		}
+	}
+	for (const String &E : to_erase) {
+		r_condition.erase(E);
+	}
+}
+
+ShaderGraph::StaticSwitchGuard ShaderGraph::make_static_switch_guard(const StaticSwitchCondition &p_condition) {
+	Vector<String> names;
+	for (const KeyValue<String, bool> &E : p_condition) {
+		names.push_back(E.key);
+	}
+	names.sort(); // Deterministic output, so the shader code only changes when the graph does.
+
+	StaticSwitchGuard guard;
+	for (const String &E : names) {
+		guard.open += (p_condition[E] ? "#ifdef " : "#ifndef ") + E + "\n";
+		guard.close += "#endif\n";
+	}
+	return guard;
+}
+
+bool ShaderGraph::_get_static_switch_condition(int p_node, const HashSet<int> &p_roots, const HashMap<int, LocalVector<const Connection *>> &p_consumers, HashMap<int, StaticSwitchCondition> &r_conditions, HashSet<int> &r_unused) const {
+	if (r_conditions.has(p_node)) {
+		return true;
+	}
+	if (r_unused.has(p_node)) {
+		return false;
+	}
+	if (p_roots.has(p_node)) {
+		r_conditions.insert(p_node, StaticSwitchCondition());
+		return true;
+	}
+
+	// Marked unused while visiting, which also guards against cycles.
+	r_unused.insert(p_node);
+
+	bool used = false;
+	StaticSwitchCondition condition;
+	const LocalVector<const Connection *> *consumers = p_consumers.getptr(p_node);
+	if (consumers) {
+		for (const Connection *E : *consumers) {
+			const RBMap<int, Node>::Element *to_element = nodes.find(E->to_node);
+			if (!to_element || to_element->value().node->is_disabled()) {
+				continue;
+			}
+			const Node *to = &to_element->value();
+			if (!_get_static_switch_condition(E->to_node, p_roots, p_consumers, r_conditions, r_unused)) {
+				continue;
+			}
+
+			StaticSwitchCondition path(r_conditions[E->to_node]);
+			const VisualShaderNodeStaticSwitch *static_switch = Object::cast_to<VisualShaderNodeStaticSwitch>(to->node.ptr());
+			if (static_switch && static_switch->get_switch_name().is_valid_ascii_identifier() && E->to_port <= 1) {
+				const String switch_name = static_switch->get_switch_name();
+				const bool branch = E->to_port == 0;
+				const bool *existing = path.getptr(switch_name);
+				if (existing && *existing != branch) {
+					continue; // This path needs the switch both on and off, so it's never compiled.
+				}
+				path[switch_name] = branch;
+			}
+
+			if (used) {
+				intersect_static_switch_conditions(condition, path);
+			} else {
+				condition = path;
+				used = true;
+			}
+		}
+	}
+
+	if (!used) {
+		return false;
+	}
+	r_unused.erase(p_node);
+	r_conditions.insert(p_node, condition);
+	return true;
+}
+
+void ShaderGraph::get_static_switch_conditions(const HashSet<int> &p_roots, HashMap<int, StaticSwitchCondition> &r_conditions) const {
+	HashMap<int, LocalVector<const Connection *>> consumers;
+	for (const Connection &E : connections) {
+		consumers[E.from_node].push_back(&E);
+	}
+
+	HashSet<int> unused;
+	for (const KeyValue<int, Node> &E : nodes) {
+		_get_static_switch_condition(E.key, p_roots, consumers, r_conditions, unused);
+	}
 }
 
 bool ShaderGraph::_check_reroute_subgraph(int p_target_port_type, int p_reroute_node, List<int> *r_visited_reroute_nodes) const {

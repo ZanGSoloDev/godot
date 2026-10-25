@@ -146,7 +146,8 @@ private:
 			int p_node,
 			HashSet<int> &r_processed,
 			bool p_for_preview,
-			HashSet<StringName> &r_classes) const;
+			HashSet<StringName> &r_classes,
+			const HashMap<int, ShaderGraph::StaticSwitchGuard> *p_static_switch_guards = nullptr) const;
 
 	void _input_type_changed(Type p_type, int p_id);
 	bool _has_func_name(RSE::ShaderMode p_mode, const String &p_func_name) const;

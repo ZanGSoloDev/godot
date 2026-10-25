@@ -1789,8 +1789,9 @@ void VisualShader::_write_node(
 		int p_node,
 		HashSet<int> &r_processed,
 		bool p_for_preview,
-		HashSet<StringName> &r_classes) const {
-	graph[p_type]->write_node(p_global_code, p_global_code_per_node, p_global_code_per_func, r_code, r_def_tex_params, p_input_connections, p_output_connections, p_node, r_processed, p_for_preview, r_classes, p_type, get_mode());
+		HashSet<StringName> &r_classes,
+		const HashMap<int, ShaderGraph::StaticSwitchGuard> *p_static_switch_guards) const {
+	graph[p_type]->write_node(p_global_code, p_global_code_per_node, p_global_code_per_func, r_code, r_def_tex_params, p_input_connections, p_output_connections, p_node, r_processed, p_for_preview, r_classes, p_type, get_mode(), p_static_switch_guards);
 }
 
 bool VisualShader::_has_func_name(RSE::ShaderMode p_mode, const String &p_func_name) const {
@@ -1978,11 +1979,70 @@ void VisualShader::_update_shader() const {
 		}
 	}
 
+	// Code only used inside static switch branches is wrapped in #ifdef, so it is stripped from the
+	// variants that don't use it and its parameters are hidden from those MaterialInstances.
+	HashMap<int, ShaderGraph::StaticSwitchGuard> static_switch_guards[TYPE_MAX];
+	HashMap<String, ShaderGraph::StaticSwitchCondition> parameter_conditions;
+	// Switches are declared before any code, since wrapped uniforms are tested before the switch nodes are written.
+	String static_switch_declarations;
+	for (int i = 0; i < TYPE_MAX; i++) {
+		if (!_has_func_name(RSE::ShaderMode(shader_mode), func_name[i])) {
+			continue;
+		}
+
+		HashSet<int> roots;
+		roots.insert(ShaderGraph::NODE_ID_OUTPUT);
+		if (varying_setters.has(i)) {
+			for (int E : varying_setters[i]) {
+				roots.insert(E);
+			}
+		}
+		if (emitters.has(i)) {
+			for (int E : emitters[i]) {
+				roots.insert(E);
+			}
+		}
+
+		HashMap<int, ShaderGraph::StaticSwitchCondition> conditions;
+		graph[i]->get_static_switch_conditions(roots, conditions);
+		for (const KeyValue<int, ShaderGraph::StaticSwitchCondition> &E : conditions) {
+			if (!E.value.is_empty()) {
+				static_switch_guards[i].insert(E.key, ShaderGraph::make_static_switch_guard(E.value));
+			}
+
+			// Parameters can also be used by name through ParameterRef nodes, possibly in other functions.
+			String parameter_name;
+			const Ref<VisualShaderNode> &node = graph[i]->get_node_unchecked(E.key);
+			if (const VisualShaderNodeStaticSwitch *static_switch = Object::cast_to<VisualShaderNodeStaticSwitch>(node.ptr())) {
+				if (!static_switch->is_disabled()) {
+					static_switch_declarations += static_switch->generate_global(get_mode(), Type(i), E.key);
+				}
+			}
+			if (const VisualShaderNodeParameter *parameter = Object::cast_to<VisualShaderNodeParameter>(node.ptr())) {
+				parameter_name = parameter->get_parameter_name();
+			} else if (const VisualShaderNodeParameterRef *parameter_ref = Object::cast_to<VisualShaderNodeParameterRef>(node.ptr())) {
+				parameter_name = parameter_ref->get_parameter_name();
+			}
+			if (!parameter_name.is_empty()) {
+				ShaderGraph::StaticSwitchCondition *condition = parameter_conditions.getptr(parameter_name);
+				if (condition) {
+					ShaderGraph::intersect_static_switch_conditions(*condition, E.value);
+				} else {
+					parameter_conditions.insert(parameter_name, E.value);
+				}
+			}
+		}
+	}
+
+	global_code += static_switch_declarations;
+
 	int idx = 0;
 	for (List<VisualShaderNodeParameter *>::Iterator itr = parameters.begin(); itr != parameters.end(); ++itr, ++idx) {
 		VisualShaderNodeParameter *parameter = *itr;
 		if (used_parameter_names.has(parameter->get_parameter_name())) {
-			global_code += parameter->generate_global(get_mode(), Type(idx), -1);
+			const ShaderGraph::StaticSwitchCondition *condition = parameter_conditions.getptr(parameter->get_parameter_name());
+			const ShaderGraph::StaticSwitchGuard guard = condition ? ShaderGraph::make_static_switch_guard(*condition) : ShaderGraph::StaticSwitchGuard();
+			global_code += guard.open + parameter->generate_global(get_mode(), Type(idx), -1) + guard.close;
 			parameter->set_global_code_generated(true);
 		} else {
 			parameter->set_global_code_generated(false);
@@ -2132,17 +2192,17 @@ void VisualShader::_update_shader() const {
 		}
 		insertion_pos.insert(i, shader_code.get_string_length() + func_code.get_string_length());
 
-		_write_node(ShaderGraph::Type(i), &global_code, &global_code_per_node, &global_code_per_func, func_code, default_tex_params, input_connections, output_connections, ShaderGraph::NODE_ID_OUTPUT, processed, false, classes);
+		_write_node(ShaderGraph::Type(i), &global_code, &global_code_per_node, &global_code_per_func, func_code, default_tex_params, input_connections, output_connections, ShaderGraph::NODE_ID_OUTPUT, processed, false, classes, &static_switch_guards[i]);
 
 		if (varying_setters.has(i)) {
 			for (int &E : varying_setters[i]) {
-				_write_node(ShaderGraph::Type(i), &global_code, &global_code_per_node, nullptr, func_code, default_tex_params, input_connections, output_connections, E, processed, false, classes);
+				_write_node(ShaderGraph::Type(i), &global_code, &global_code_per_node, nullptr, func_code, default_tex_params, input_connections, output_connections, E, processed, false, classes, &static_switch_guards[i]);
 			}
 		}
 
 		if (emitters.has(i)) {
 			for (int &E : emitters[i]) {
-				_write_node(ShaderGraph::Type(i), &global_code, &global_code_per_node, &global_code_per_func, func_code, default_tex_params, input_connections, output_connections, E, processed, false, classes);
+				_write_node(ShaderGraph::Type(i), &global_code, &global_code_per_node, &global_code_per_func, func_code, default_tex_params, input_connections, output_connections, E, processed, false, classes, &static_switch_guards[i]);
 			}
 		}
 
